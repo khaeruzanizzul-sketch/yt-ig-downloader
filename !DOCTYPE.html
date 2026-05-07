@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Downloader YT & IG</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: #17171c; }
+    ::selection { background: #8b5cf6; color: #fff; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-center items-center bg-[#17171c] text-white transition-colors duration-300">
+
+  <div class="w-full max-w-md mt-16 px-4">
+    <div class="bg-[#22222a] rounded-xl shadow-lg p-8 flex flex-col items-center">
+      <h1 class="text-2xl font-bold mb-6 text-gray-100">Video Downloader</h1>
+      <input
+        id="url-input"
+        type="url"
+        spellcheck="false"
+        placeholder="Paste link YouTube / Instagram di sini..."
+        class="w-full px-4 py-3 rounded-md bg-[#191924] border border-gray-700 focus:ring-2 focus:ring-purple-500 outline-none text-gray-100 placeholder-gray-400 transition mb-4"
+        autofocus
+      />
+      <button
+        id="download-btn"
+        class="w-full py-3 rounded-md bg-gradient-to-r from-blue-500 to-purple-600 hover:from-purple-600 hover:to-blue-500 font-semibold text-lg text-white shadow-lg mt-2 focus:outline-none transition-all duration-200 border border-transparent hover:border-purple-500"
+      >
+        Download
+      </button>
+      <div id="loading" class="mt-6 hidden">
+        <svg class="animate-spin h-8 w-8 text-purple-500 mx-auto" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+        </svg>
+        <p class="mt-2 text-gray-400 text-sm">Mengambil data...</p>
+      </div>
+      <div id="result" class="mt-8 w-full"></div>
+    </div>
+    <p class="text-xs text-gray-500 opacity-60 mt-6 text-center">&copy; 2024 Downloader YT & IG. Powered by RapidAPI + Proxy.</p>
+  </div>
+
+  <script>
+    // GANTI URL DI BAWAH INI DENGAN ALAMAT PROXY ANDA
+    const PROXY_URL = 'https://yt-ig-downloader-76hb.vercel.app/api/download';
+
+    // Selectors
+    const urlInput = document.getElementById('url-input');
+    const downloadBtn = document.getElementById('download-btn');
+    const loadingDiv = document.getElementById('loading');
+    const resultDiv = document.getElementById('result');
+
+    // Paste on focus
+    urlInput.addEventListener('focus', async function() {
+      if (navigator.clipboard) {
+        const text = await navigator.clipboard.readText();
+        if (text && (text.includes('youtube.com') || text.includes('youtu.be') || text.includes('instagram.com')))
+          urlInput.value = text.trim();
+      }
+    });
+
+    // Submit on Enter
+    urlInput.addEventListener('keyup', function(e) {
+      if (e.key === 'Enter') downloadBtn.click();
+    });
+
+    // Fetch via Proxy
+    async function fetchDownloadData(url) {
+      const res = await fetch(PROXY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+
+      if (!res.ok)
+        throw new Error('Gagal mengambil data, coba beberapa saat lagi.');
+
+      const data = await res.json();
+
+      if (data.status && data.status !== 'success')
+        throw new Error(data.message || 'Gagal mengambil data.');
+
+      return data;
+    }
+
+    // Download file helper
+    function saveToDevice(fileUrl, filename) {
+      const a = document.createElement('a');
+      a.href = fileUrl;
+      a.download = filename || '';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    // Main handler
+    downloadBtn.addEventListener('click', async function() {
+      const url = urlInput.value.trim();
+      resultDiv.innerHTML = '';
+      if (!url) {
+        resultDiv.innerHTML = '<p class="text-red-400 text-sm text-center">Masukkan URL Instagram atau YouTube!</p>';
+        return;
+      }
+
+      loadingDiv.classList.remove('hidden');
+      downloadBtn.disabled = true;
+      urlInput.disabled = true;
+
+      try {
+        const data = await fetchDownloadData(url);
+
+        // Parse output, can change based on API output
+        let title = '';
+        let thumb = '';
+        let mediaUrl = '';
+        let isVideo = true;
+
+        if (url.includes('instagram.com')) {
+          // Instagram: media array (video or image)
+          if (data.result && data.result.media && data.result.media.length > 0) {
+            const media = data.result.media[0];
+            mediaUrl = media.url;
+            isVideo = media.type === "video";
+            thumb = isVideo ? (media.thumbnail || media.url) : media.url;
+          }
+          title = data.result.caption || 'Konten Instagram';
+        } else {
+          // YouTube
+          title = data.result.title || 'Video YouTube';
+          mediaUrl = (data.result.streams?.find(s => s.quality === "hd") || data.result.streams?.[0])?.url || '';
+          thumb = data.result.thumbnail || '';
+        }
+
+        let resultHTML = `
+          <div class="bg-[#181824] rounded-lg p-5 shadow-lg flex flex-col sm:flex-row items-center gap-5">
+            <img src="${thumb}" alt="Thumbnail" class="w-32 h-32 object-cover rounded-lg shadow-md border border-gray-800 mb-2 sm:mb-0">
+            <div class="flex-grow">
+              <p class="text-lg font-semibold text-gray-100 mb-1">${title}</p>
+              <button
+                onclick="window.saveToDevice && window.saveToDevice('${mediaUrl.replace(/'/g,'\\\'')}', '${(title || 'media').replace(/[^\w.]/g, '_')}.${isVideo ? 'mp4' : 'jpg'}')"
+                class="mt-2 px-4 py-2 rounded bg-gradient-to-r from-purple-600 to-blue-500 hover:from-blue-500 hover:to-purple-600 text-white font-medium shadow transition-all duration-200 border border-transparent hover:border-blue-400 focus:outline-none"
+              >
+                Save to Device
+              </button>
+            </div>
+          </div>
+        `;
+        resultDiv.innerHTML = resultHTML;
+        window.saveToDevice = saveToDevice; // So button onclick works
+      } catch (e) {
+        resultDiv.innerHTML = `<p class="text-red-400 text-center text-sm">${e.message}</p>`;
+      } finally {
+        loadingDiv.classList.add('hidden');
+        downloadBtn.disabled = false;
+        urlInput.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
